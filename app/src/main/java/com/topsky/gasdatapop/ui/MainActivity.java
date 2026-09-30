@@ -8,7 +8,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.blankj.utilcode.util.AppUtils;
 import com.blankj.utilcode.util.CollectionUtils;
 import com.blankj.utilcode.util.LogUtils;
 import com.hjq.permissions.XXPermissions;
@@ -17,9 +16,19 @@ import com.hjq.window.EasyWindow;
 import com.hjq.window.EasyWindowManager;
 import com.hjq.window.OnWindowViewClickListener;
 import com.hjq.window.draggable.MovingWindowDraggableRule;
+import com.skydroid.rcsdk.PipelineManager;
+import com.skydroid.rcsdk.RCSDKManager;
+import com.skydroid.rcsdk.SDKManagerCallBack;
+import com.skydroid.rcsdk.comm.CommListener;
+import com.skydroid.rcsdk.common.Uart;
+import com.skydroid.rcsdk.common.error.SkyException;
+import com.skydroid.rcsdk.common.pipeline.Pipeline;
 import com.topsky.gasdatapop.R;
 import com.topsky.gasdatapop.base.BaseActivity;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
+import com.topsky.gasdatapop.utils.HexUtils;
+
+import androidx.annotation.Nullable;
 
 public class MainActivity extends BaseActivity<ActivityMainBinding> implements View.OnClickListener {
     private static final String TAG = "MainActivity";
@@ -32,11 +41,10 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
     @Override
     protected void init() {
-        EasyWindowManager.cancelAllWindow();
-        initSerial();
-        checkPermission();
         // 添加标志保持屏幕常亮
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        checkPermission();
+        initSerial();
     }
 
     @Override
@@ -97,10 +105,91 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                     easyWindow.setVisibilityByView(R.id.iv_close, View.VISIBLE);
                     easyWindow.setVisibilityByView(R.id.nested_scroll_view, View.VISIBLE);
                 });
+        easyWindowGAS.show();
     }
 
     //region 串口服务
+    private Pipeline pipeline;
+    private long lastDataReceivedTime;
+    private boolean isDeviceOnline = false;
+    private static final long DATA_CHECK_INTERVAL = 10_000L;
+    private final Runnable dataCheckRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (System.currentTimeMillis() - lastDataReceivedTime > DATA_CHECK_INTERVAL) {
+                changeDeviceStatus(false);
+                isDeviceOnline = false;
+            }
+            postDelayed(this, DATA_CHECK_INTERVAL);
+        }
+    };
+
     private void initSerial() {
+        RCSDKManager.INSTANCE.initSDK(this, new SDKManagerCallBack() {
+            @Override
+            public void onRcConnected() {
+                //连接成功
+                LogUtils.d(TAG, "onRcConnected");
+                createPipeline();
+            }
+
+            @Override
+            public void onRcConnectFail(@Nullable SkyException e) {
+                //连接失败
+                LogUtils.e(TAG, "onRcConnectFail:" + (e == null ? "" : e.getMessage()));
+            }
+
+            @Override
+            public void onRcDisconnect() {
+                //断开连接
+                LogUtils.d(TAG, "onRcDisconnect");
+            }
+        });
+        //设置在主线程回调
+        RCSDKManager.INSTANCE.setMainThreadCallBack(true);
+        //连接遥控器
+        RCSDKManager.INSTANCE.connectToRC();
+    }
+
+    private void createPipeline() {
+        //创建通讯管道
+        pipeline = PipelineManager.INSTANCE.createPipeline(Uart.UART0);
+        if (pipeline != null) {
+            pipeline.setOnCommListener(new CommListener() {
+                @Override
+                public void onConnectSuccess() {
+                    //连接成功
+                    LogUtils.d(TAG, "onConnectSuccess");
+                }
+
+                @Override
+                public void onConnectFail(SkyException e) {
+                    //连接失败
+                    LogUtils.e(TAG, "onConnectFail:" + (e == null ? "" : e.getMessage()));
+                }
+
+                @Override
+                public void onDisconnect() {
+                    //断开连接
+                    LogUtils.d(TAG, "onDisconnect");
+                }
+
+                @Override
+                public void onReadData(byte[] bytes) {
+                    //读取数据
+                    LogUtils.d(TAG, "onReadData:" + HexUtils.bytesToHex(bytes));
+                    lastDataReceivedTime = System.currentTimeMillis();
+                    if (!isDeviceOnline) {
+                        isDeviceOnline = true;
+                        changeDeviceStatus(true);
+                        removeCallbacks(dataCheckRunnable);
+                        postDelayed(dataCheckRunnable, DATA_CHECK_INTERVAL);
+                    }
+                }
+            });
+            //连接通讯管道
+            PipelineManager.INSTANCE.connectPipeline(pipeline);
+        }
     }
     //endregion
 
@@ -129,44 +218,26 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             easyWindowGAS.setTextByTextView(R.id.tvDeviceInfo, android.text.Html.fromHtml(htmlText, android.text.Html.FROM_HTML_MODE_LEGACY));
         }
     }
+
+    private void changeDeviceStatus(boolean online) {
+        if (easyWindowGAS != null && easyWindowGAS.isShowing() && !isFinishing() && !isDestroyed()) {
+            easyWindowGAS.setTextByTextView(R.id.tvDeviceTitle, getString(online ? R.string.device_online : R.string.device_offline));
+        }
+    }
     //endregion
 
     //region生命周期
     @Override
     protected void onDestroy() {
+        removeCallbacks(dataCheckRunnable);
+        RCSDKManager.INSTANCE.disconnectRC();
+        //断开通讯管道
+        if (pipeline != null) {
+            PipelineManager.INSTANCE.disconnectPipeline(pipeline);
+        }
         EasyWindowManager.cancelAllWindow();
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        EasyWindowManager.cancelAllWindow();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        showGasPop();
-    }
-
-    private void showGasPop() {
-        // 确保UI操作在主线程执行
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                if (easyWindowGAS != null && !easyWindowGAS.isShowing() && !isFinishing()
-                        && !isDestroyed() && !AppUtils.isAppForeground()) {
-                    easyWindowGAS.show();
-                }
-            }
-        });
     }
     //endregion
 }

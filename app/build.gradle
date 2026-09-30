@@ -79,8 +79,6 @@ dependencies {
     // rxjava
     implementation 'io.reactivex.rxjava2:rxandroid:2.0.2'
     implementation 'io.reactivex.rxjava2:rxjava:2.1.12'
-    //https://github.com/greenrobot/EventBus
-    implementation 'org.greenrobot:eventbus:3.3.1'
     implementation 'com.google.code.gson:gson:2.8.7'
     implementation "io.github.cymchad:BaseRecyclerViewAdapterHelper4:4.1.4"
     implementation 'com.github.bumptech.glide:glide:4.16.0'
@@ -90,16 +88,7 @@ dependencies {
     implementation 'jp.wasabeef:glide-transformations:4.3.0'
     // 悬浮窗框架：https://github.com/getActivity/EasyWindow
     implementation 'com.github.getActivity:EasyWindow:13.2'
-    //https://github.com/yutils/YSerialPort
-    implementation 'com.kotlinx:yserialport:2.2.8'
 
     //https://github.com/junixapp/XPopup
     implementation 'com.github.li-xiaojun:XPopup:2.10.0'
-
-    //消息总线 https://github.com/JeremyLiao/LiveEventBus
-    //https://github.com/JeremyLiao/LiveEventBus/issues/173
-    implementation 'com.github.neo-turak:LiveEventBus:1.8.1'
-
-    //万能阴影布局-ShadowLayout https://github.com/lihangleo2/ShadowLayout?tab=readme-ov-file
-    implementation 'com.github.lihangleo2:ShadowLayout:3.4.5'
 }
