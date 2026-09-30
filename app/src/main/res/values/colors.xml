@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="black_a50">#83000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="color_c">#ffcccccc</color>
+    <color name="color_btn_lock">#aaF76C6C</color>
+    <color name="color_btn_lock2">#F76C6C</color>
+    <color name="color_btn_lock_true">#8900ff00</color>
+    <color name="color_btn_lock_true2">#00ff00</color>
+
+    <color name="color_btn_disable">#89cccccc</color>
+    <color name="color_btn_normal">#aa2196F3</color>
+    <color name="color_btn_pressed">#2196F3</color>
+
+    <color name="color_btn_disable2">#cccccc</color>
+    <color name="color_btn_normal2">#c02196F3</color>
+    <color name="color_btn_pressed2">#2196F3</color>
+</resources>

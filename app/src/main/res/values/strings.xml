@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">悬浮窗气体</string>
+    <string name="set_app_float_permission_tip">请授权悬浮窗权限</string>
+    <string name="device_connected">设备已连接</string>
+    <string name="device_online">设备在线</string>
+    <string name="device_offline">设备离线</string>
+</resources>

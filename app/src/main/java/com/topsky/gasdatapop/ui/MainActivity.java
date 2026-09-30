@@ -1,0 +1,172 @@
+package com.topsky.gasdatapop.ui;
+
+import android.content.Intent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.blankj.utilcode.util.AppUtils;
+import com.blankj.utilcode.util.CollectionUtils;
+import com.blankj.utilcode.util.LogUtils;
+import com.hjq.permissions.XXPermissions;
+import com.hjq.permissions.permission.PermissionLists;
+import com.hjq.window.EasyWindow;
+import com.hjq.window.EasyWindowManager;
+import com.hjq.window.OnWindowViewClickListener;
+import com.hjq.window.draggable.MovingWindowDraggableRule;
+import com.topsky.gasdatapop.R;
+import com.topsky.gasdatapop.base.BaseActivity;
+import com.topsky.gasdatapop.databinding.ActivityMainBinding;
+
+public class MainActivity extends BaseActivity<ActivityMainBinding> implements View.OnClickListener {
+    private static final String TAG = "MainActivity";
+    private EasyWindow easyWindowGAS;
+
+    @Override
+    protected ActivityMainBinding initViewBinding(LayoutInflater inflater) {
+        return ActivityMainBinding.inflate(inflater);
+    }
+
+    @Override
+    protected void init() {
+        EasyWindowManager.cancelAllWindow();
+        initSerial();
+        checkPermission();
+        // 添加标志保持屏幕常亮
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleBootLaunch();
+    }
+
+    private void handleBootLaunch() {
+        try {
+            Intent intent = getIntent();
+            if (intent != null && intent.getBooleanExtra("launched_from_boot", false)) {
+                postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        moveTaskToBack(true);
+                    }
+                }, 500);
+                LogUtils.i(TAG, "Launched from boot; moving to background.");
+            }
+        } catch (Exception e) {
+            LogUtils.e(TAG, "handleBootLaunch error: " + e.getMessage(), e);
+        }
+    }
+
+    private void checkPermission() {
+        XXPermissions.with(this)
+                .permission(PermissionLists.getSystemAlertWindowPermission())
+                .request((grantedList, deniedList) -> {
+                    if (CollectionUtils.isNotEmpty(grantedList)) {
+                        initPop();
+                    } else {
+                        Toast.makeText(MainActivity.this, R.string.set_app_float_permission_tip, Toast.LENGTH_LONG).show();
+                    }
+                });
+    }
+
+    @Override
+    public void onClick(View v) {
+    }
+
+    private void initPop() {
+        // 传入 Activity 对象表示设置成局部的，不需要有悬浮窗权限
+        // 传入 Application 对象表示设置成全局的，但需要有悬浮窗权限
+        // noinspection unchecked
+        easyWindowGAS = EasyWindow.with(this.getApplication())
+                .setContentView(R.layout.pop_gas_data)
+                .setWindowTag("gas")
+                //.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+                // 设置成可拖拽的
+                .setWindowDraggableRule(new MovingWindowDraggableRule())
+                .setWindowLocationPercent(0.68f, 0.1f)
+                .setOnClickListenerByView(R.id.iv_close, (OnWindowViewClickListener<ImageView>) (easyWindow, view) -> {
+                    easyWindow.setVisibilityByView(R.id.iv_close, View.GONE);
+                    easyWindow.setVisibilityByView(R.id.nested_scroll_view, View.GONE);
+                }).setOnClickListenerByView(R.id.tvDeviceTitle, (OnWindowViewClickListener<TextView>) (easyWindow, view) -> {
+                    easyWindow.setVisibilityByView(R.id.iv_close, View.VISIBLE);
+                    easyWindow.setVisibilityByView(R.id.nested_scroll_view, View.VISIBLE);
+                });
+    }
+
+    //region 串口服务
+    private void initSerial() {
+    }
+    //endregion
+
+    //region 更新弹窗数据
+    private void updatePopupDeviceInfo() {
+        StringBuilder deviceInfo = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            // 检查是否超过预警值
+            boolean isWarn = false;
+
+            // 构建设备信息文本，根据预警状态设置颜色
+            String deviceText = "• ";
+
+            if (isWarn) {
+                // 预警数据显示红色
+                deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
+            } else {
+                // 正常数据显示白色
+                deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+            }
+        }
+
+        // 使用HTML格式设置文本
+        String htmlText = deviceInfo.toString();
+        if (easyWindowGAS != null) {
+            easyWindowGAS.setTextByTextView(R.id.tvDeviceInfo, android.text.Html.fromHtml(htmlText, android.text.Html.FROM_HTML_MODE_LEGACY));
+        }
+    }
+    //endregion
+
+    //region生命周期
+    @Override
+    protected void onDestroy() {
+        EasyWindowManager.cancelAllWindow();
+        super.onDestroy();
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        EasyWindowManager.cancelAllWindow();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        showGasPop();
+    }
+
+    private void showGasPop() {
+        // 确保UI操作在主线程执行
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (easyWindowGAS != null && !easyWindowGAS.isShowing() && !isFinishing()
+                        && !isDestroyed() && !AppUtils.isAppForeground()) {
+                    easyWindowGAS.show();
+                }
+            }
+        });
+    }
+    //endregion
+}
