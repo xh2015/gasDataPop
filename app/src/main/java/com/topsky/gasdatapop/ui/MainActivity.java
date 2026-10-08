@@ -25,8 +25,12 @@ import com.skydroid.rcsdk.common.error.SkyException;
 import com.skydroid.rcsdk.common.pipeline.Pipeline;
 import com.topsky.gasdatapop.R;
 import com.topsky.gasdatapop.base.BaseActivity;
+import com.topsky.gasdatapop.bean.GasInfo;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
+import com.topsky.gasdatapop.mqtt.MQTTManager;
 import com.topsky.gasdatapop.utils.HexUtils;
+
+import java.util.List;
 
 import androidx.annotation.Nullable;
 
@@ -226,6 +230,16 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
     //endregion
 
+    //region MQTT 云平台
+    private void initMqtt() {
+        MQTTManager.getInstance().init(this);
+    }
+
+    private void push2Cloud(List<GasInfo> gasBeanList) {
+        MQTTManager.getInstance().push2Cloud(gasBeanList);
+    }
+    //endregion
+
     //region生命周期
     @Override
     protected void onDestroy() {
@@ -236,6 +250,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             PipelineManager.INSTANCE.disconnectPipeline(pipeline);
         }
         EasyWindowManager.cancelAllWindow();
+        MQTTManager.getInstance().release();
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }

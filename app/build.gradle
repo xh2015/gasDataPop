@@ -91,4 +91,7 @@ dependencies {
 
     //https://github.com/junixapp/XPopup
     implementation 'com.github.li-xiaojun:XPopup:2.10.0'
+
+    // MQTT库 https://github.com/hannesa2/paho.mqtt.android
+    implementation "com.github.hannesa2:paho.mqtt.android:3.6.6"
 }
