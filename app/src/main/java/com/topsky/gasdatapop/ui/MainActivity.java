@@ -9,6 +9,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.blankj.utilcode.util.CollectionUtils;
+import com.blankj.utilcode.util.KeyboardUtils;
 import com.blankj.utilcode.util.LogUtils;
 import com.blankj.utilcode.util.SPUtils;
 import com.hjq.permissions.XXPermissions;
@@ -33,7 +34,9 @@ import com.topsky.gasdatapop.databinding.ActivityMainBinding;
 import com.topsky.gasdatapop.mqtt.MQTTManager;
 import com.topsky.gasdatapop.utils.HexUtils;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import androidx.annotation.Nullable;
 
@@ -129,6 +132,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             MQTTManager.getInstance().updateDeviceCode(code);
             Toast.makeText(this, R.string.ty_save_success, Toast.LENGTH_SHORT).show();
             binding.cardDeviceCode.setVisibility(View.GONE);
+            KeyboardUtils.hideSoftInput(binding.etDeviceCode);
         }
     }
 
@@ -239,14 +243,17 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     //endregion
 
     //region 更新弹窗数据
-    private void updatePopupDeviceInfo() {
+    private void updatePopupDeviceInfo(List<GasInfo> gasBeanList) {
+        if (gasBeanList == null || gasBeanList.isEmpty()) {
+            return;
+        }
         StringBuilder deviceInfo = new StringBuilder();
-        for (int i = 0; i < 10; i++) {
+        for (GasInfo gasInfo : gasBeanList) {
             // 检查是否超过预警值
             boolean isWarn = false;
 
             // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• ";
+            String deviceText = "• " + gasInfo.getEnName() + " " + gasInfo.getValue() + " " + gasInfo.getUnit();
 
             if (isWarn) {
                 // 预警数据显示红色
@@ -274,6 +281,38 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     //region MQTT 云平台
     private void initMqtt() {
         MQTTManager.getInstance().init(this);
+        Random random = new Random();
+        Runnable test = new Runnable() {
+            @Override
+            public void run() {
+                List<GasInfo> gasBeanList = new ArrayList<>();
+                GasInfo gasInfo = new GasInfo();
+                gasInfo.setName("CO");
+                gasInfo.setUnit("ppm");
+                gasInfo.setValue(random.nextInt(100));
+                gasInfo.setEnName("CO");
+                gasBeanList.add(gasInfo);
+
+                gasInfo = new GasInfo();
+                gasInfo.setName("O2");
+                gasInfo.setUnit("%");
+                gasInfo.setValue(random.nextInt(30));
+                gasInfo.setEnName("O2");
+                gasBeanList.add(gasInfo);
+
+                gasInfo = new GasInfo();
+                gasInfo.setName("CH4");
+                gasInfo.setUnit("ppm");
+                gasInfo.setValue(random.nextInt(100) / 10.0f);
+                gasInfo.setEnName("CH4");
+                gasBeanList.add(gasInfo);
+
+                push2Cloud(gasBeanList);
+                updatePopupDeviceInfo(gasBeanList);
+                postDelayed(this, 2000);
+            }
+        };
+        post(test);
     }
 
     private void push2Cloud(List<GasInfo> gasBeanList) {

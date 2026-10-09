@@ -30,16 +30,16 @@
             </intent-filter>
         </activity>
 
-        <receiver
+        <!--<receiver
             android:name="com.topsky.gasdatapop.receiver.BootCompletedReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <!-- Some devices use this quick boot action -->
+                &lt;!&ndash; Some devices use this quick boot action &ndash;&gt;
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
-        </receiver>
+        </receiver>-->
 
     </application>
 
