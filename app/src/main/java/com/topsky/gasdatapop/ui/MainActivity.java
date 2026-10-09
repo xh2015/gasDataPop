@@ -22,7 +22,6 @@ import com.skydroid.rcsdk.PipelineManager;
 import com.skydroid.rcsdk.RCSDKManager;
 import com.skydroid.rcsdk.SDKManagerCallBack;
 import com.skydroid.rcsdk.comm.CommListener;
-import com.skydroid.rcsdk.common.Uart;
 import com.skydroid.rcsdk.common.error.SkyException;
 import com.skydroid.rcsdk.common.pipeline.Pipeline;
 import com.topsky.gasdatapop.R;
@@ -34,9 +33,7 @@ import com.topsky.gasdatapop.databinding.ActivityMainBinding;
 import com.topsky.gasdatapop.mqtt.MQTTManager;
 import com.topsky.gasdatapop.utils.HexUtils;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 import androidx.annotation.Nullable;
 
@@ -59,8 +56,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         checkPermission();
         initView();
-        initMqtt();
-        initSerial();
+        //initMqtt();
+        initTcpClient();
     }
 
     @Override
@@ -157,7 +154,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         easyWindowGAS.show();
     }
 
-    //region 串口服务
+    //region 遥控器通信
     private Pipeline pipeline;
     private long lastDataReceivedTime;
     private boolean isDeviceOnline = false;
@@ -173,7 +170,23 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         }
     };
 
-    private void initSerial() {
+    //获取实时数据 0xFE，0xFE，0x68，0x01，0x01，0x01，0x6B，0x16
+    private final byte[] cmd = { (byte) 0xFE, (byte) 0xFE, (byte) 0x68,
+            (byte) 0x01, (byte) 0x01, (byte) 0x01, (byte) 0x6B, (byte) 0x16 };
+    private final Runnable cmdRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (pipeline != null) {
+                pipeline.writeData(cmd);
+                LogUtils.d(TAG, "writeData:" + HexUtils.bytesToHex(cmd));
+            }
+            postDelayed(this, 1000);
+        }
+    };
+
+    private void initTcpClient() {
+        removeCallbacks(cmdRunnable);
+        postDelayed(cmdRunnable, 1000);
         RCSDKManager.INSTANCE.initSDK(this, new SDKManagerCallBack() {
             @Override
             public void onRcConnected() {
@@ -202,7 +215,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
     private void createPipeline() {
         //创建通讯管道
-        pipeline = PipelineManager.INSTANCE.createPipeline(Uart.UART0);
+        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.101", 14550, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
@@ -249,8 +262,11 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         }
         StringBuilder deviceInfo = new StringBuilder();
         for (GasInfo gasInfo : gasBeanList) {
+            if (gasInfo == null) {
+                continue;
+            }
             // 检查是否超过预警值
-            boolean isWarn = false;
+            boolean isWarn = gasInfo.isWarn();
 
             // 构建设备信息文本，根据预警状态设置颜色
             String deviceText = "• " + gasInfo.getEnName() + " " + gasInfo.getValue() + " " + gasInfo.getUnit();
@@ -278,7 +294,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
     //endregion
 
-    //region MQTT 云平台
+    /*//region MQTT 云平台
     private void initMqtt() {
         MQTTManager.getInstance().init(this);
         Random random = new Random();
@@ -318,12 +334,13 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private void push2Cloud(List<GasInfo> gasBeanList) {
         MQTTManager.getInstance().push2Cloud(gasBeanList);
     }
-    //endregion
+    //endregion*/
 
     //region生命周期
     @Override
     protected void onDestroy() {
         removeCallbacks(dataCheckRunnable);
+        removeCallbacks(cmdRunnable);
         RCSDKManager.INSTANCE.disconnectRC();
         //断开通讯管道
         if (pipeline != null) {
