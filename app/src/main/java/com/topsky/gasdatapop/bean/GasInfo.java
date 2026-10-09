@@ -2,7 +2,7 @@ package com.topsky.gasdatapop.bean;
 
 public class GasInfo {
     private int type;
-    private float threshold;
+    private Float threshold;
     private String name;
     private String unit;
     private float value;
@@ -17,11 +17,7 @@ public class GasInfo {
         this.type = type;
     }
 
-    public float getThreshold() {
-        return threshold;
-    }
-
-    public void setThreshold(float threshold) {
+    public void setThreshold(Float threshold) {
         this.threshold = threshold;
     }
 
@@ -58,6 +54,9 @@ public class GasInfo {
     }
 
     public boolean isWarn() {
+        if (threshold == null) {
+            return false;
+        }
         if (type == 2) {
             return value < threshold;
         }

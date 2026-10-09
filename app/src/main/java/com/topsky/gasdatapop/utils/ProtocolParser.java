@@ -23,7 +23,9 @@ public class ProtocolParser {
 
     public interface OnFrameParsedListener {
         void onRealtimeData(int address, List<GasInfo> gasInfoList);
+
         void onAlarmData(int address, List<GasInfo> gasInfoList);
+
         void onAck(int address, boolean success);
     }
 
@@ -90,7 +92,6 @@ public class ProtocolParser {
             }
 
             int ctrlCode = bytes[pos + 3] & 0xFF;
-            LogUtils.d(TAG, "有效帧: addr=" + address + " L=" + length + " C1=0x" + String.format("%02X", ctrlCode));
 
             switch (ctrlCode) {
                 case CTRL_ACK:

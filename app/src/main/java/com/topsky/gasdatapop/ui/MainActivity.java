@@ -160,7 +160,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private Pipeline pipeline;
     private long lastDataReceivedTime;
     private boolean isDeviceOnline = false;
-    private static final long DATA_CHECK_INTERVAL = 10_000L;
+    private static final long DATA_CHECK_INTERVAL = 20_000L;
     private final Runnable dataCheckRunnable = new Runnable() {
         @Override
         public void run() {
@@ -178,7 +178,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private final ProtocolParser protocolParser = new ProtocolParser(new ProtocolParser.OnFrameParsedListener() {
         @Override
         public void onRealtimeData(int address, List<GasInfo> gasInfoList) {
-            LogUtils.d(TAG, "实时数据: addr=" + address + " count=" + gasInfoList.size());
             for (GasInfo gasInfo : gasInfoList) {
                 Float threshold = thresholdMap.get(gasInfo.getType());
                 if (threshold != null) {
@@ -214,7 +213,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         public void run() {
             if (pipeline != null) {
                 pipeline.writeData(cmdRealtime);
-                LogUtils.d(TAG, "发送实时数据请求:" + HexUtils.bytesToHex(cmdRealtime));
             }
             postDelayed(this, 1000);
         }
@@ -253,7 +251,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
 
     private void createPipeline() {
-        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.101", 14550, true, true);
+        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.1.159", 8899, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
@@ -275,7 +273,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
                 @Override
                 public void onReadData(byte[] bytes) {
-                    LogUtils.d(TAG, "onReadData:" + HexUtils.bytesToHex(bytes));
+                    LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(bytes));
                     lastDataReceivedTime = System.currentTimeMillis();
                     if (!isDeviceOnline) {
                         isDeviceOnline = true;
@@ -305,7 +303,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             boolean isWarn = gasInfo.isWarn();
 
             // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• " + gasInfo.getEnName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
+            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
 
             if (isWarn) {
                 // 预警数据显示红色
