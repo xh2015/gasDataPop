@@ -10,6 +10,7 @@ import android.widget.Toast;
 
 import com.blankj.utilcode.util.CollectionUtils;
 import com.blankj.utilcode.util.LogUtils;
+import com.blankj.utilcode.util.SPUtils;
 import com.hjq.permissions.XXPermissions;
 import com.hjq.permissions.permission.PermissionLists;
 import com.hjq.window.EasyWindow;
@@ -26,6 +27,8 @@ import com.skydroid.rcsdk.common.pipeline.Pipeline;
 import com.topsky.gasdatapop.R;
 import com.topsky.gasdatapop.base.BaseActivity;
 import com.topsky.gasdatapop.bean.GasInfo;
+import com.topsky.gasdatapop.constant.DefaultConstant;
+import com.topsky.gasdatapop.constant.SpConstant;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
 import com.topsky.gasdatapop.mqtt.MQTTManager;
 import com.topsky.gasdatapop.utils.HexUtils;
@@ -36,7 +39,11 @@ import androidx.annotation.Nullable;
 
 public class MainActivity extends BaseActivity<ActivityMainBinding> implements View.OnClickListener {
     private static final String TAG = "MainActivity";
+    private static final int CLICK_THRESHOLD = 6;
+    private static final long CLICK_INTERVAL_MS = 2000L;
     private EasyWindow easyWindowGAS;
+    private int clickCount = 0;
+    private long lastClickTime = 0;
 
     @Override
     protected ActivityMainBinding initViewBinding(LayoutInflater inflater) {
@@ -48,6 +55,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         // 添加标志保持屏幕常亮
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         checkPermission();
+        initView();
+        initMqtt();
         initSerial();
     }
 
@@ -87,8 +96,40 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                 });
     }
 
+    private void initView() {
+        String deviceCode = SPUtils.getInstance().getString(SpConstant.DEVICE_CODE, DefaultConstant.deviceCode);
+        binding.etDeviceCode.setText(deviceCode);
+        binding.tvGas.setOnClickListener(v -> handleGasTextClick());
+        binding.btnSaveDeviceCode.setOnClickListener(this);
+    }
+
+    private void handleGasTextClick() {
+        long now = System.currentTimeMillis();
+        if (now - lastClickTime > CLICK_INTERVAL_MS) {
+            clickCount = 0;
+        }
+        clickCount++;
+        lastClickTime = now;
+        if (clickCount >= CLICK_THRESHOLD) {
+            clickCount = 0;
+            int visibility = binding.cardDeviceCode.getVisibility();
+            binding.cardDeviceCode.setVisibility(visibility == View.VISIBLE ? View.GONE : View.VISIBLE);
+        }
+    }
+
     @Override
     public void onClick(View v) {
+        if (v.getId() == R.id.btn_save_device_code) {
+            String code = binding.etDeviceCode.getText().toString().trim();
+            if (code.isEmpty()) {
+                Toast.makeText(this, R.string.ty_device_code, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            SPUtils.getInstance().put(SpConstant.DEVICE_CODE, code);
+            MQTTManager.getInstance().updateDeviceCode(code);
+            Toast.makeText(this, R.string.ty_save_success, Toast.LENGTH_SHORT).show();
+            binding.cardDeviceCode.setVisibility(View.GONE);
+        }
     }
 
     private void initPop() {

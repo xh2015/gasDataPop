@@ -4,4 +4,9 @@
     <string name="device_connected">设备已连接</string>
     <string name="device_online">设备在线</string>
     <string name="device_offline">设备离线</string>
+
+    <string name="ty_device_code">设备号</string>
+    <string name="ty_device_code_enable">启用</string>
+    <string name="ty_save">保存</string>
+    <string name="ty_save_success">保存成功</string>
 </resources>
