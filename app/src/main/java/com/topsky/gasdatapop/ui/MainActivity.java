@@ -251,7 +251,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
 
     private void createPipeline() {
-        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.1.159", 8899, true, true);
+        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.159", 8899, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
@@ -274,6 +274,9 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                 @Override
                 public void onReadData(byte[] bytes) {
                     LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(bytes));
+                    sb.append(HexUtils.bytesToHex(bytes));
+                    sb.append("\n");
+                    binding.tvGas.setText(sb.toString());
                     lastDataReceivedTime = System.currentTimeMillis();
                     if (!isDeviceOnline) {
                         isDeviceOnline = true;
@@ -287,6 +290,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             PipelineManager.INSTANCE.connectPipeline(pipeline);
         }
     }
+
+    StringBuilder sb = new StringBuilder();
     //endregion
 
     //region 更新弹窗数据

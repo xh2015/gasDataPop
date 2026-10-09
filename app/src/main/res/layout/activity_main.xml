@@ -78,8 +78,12 @@
             android:id="@+id/tv_gas"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:enabled="true"
+            android:focusable="true"
             android:gravity="center"
-            android:text="GAS" />
+            android:longClickable="true"
+            android:text="GAS"
+            android:textIsSelectable="true" />
 
     </LinearLayout>
 
