@@ -1,6 +1,7 @@
 package com.topsky.gasdatapop.ui;
 
 import android.content.Intent;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
@@ -32,6 +33,7 @@ import com.topsky.gasdatapop.constant.SpConstant;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
 import com.topsky.gasdatapop.mqtt.MQTTManager;
 import com.topsky.gasdatapop.utils.HexUtils;
+import com.topsky.gasdatapop.utils.ProtocolParser;
 
 import java.util.List;
 
@@ -55,7 +57,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         // 添加标志保持屏幕常亮
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         checkPermission();
-        initView();
+        //initView();
         //initMqtt();
         initTcpClient();
     }
@@ -165,24 +167,66 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             if (System.currentTimeMillis() - lastDataReceivedTime > DATA_CHECK_INTERVAL) {
                 changeDeviceStatus(false);
                 isDeviceOnline = false;
+                hasFetchedAlarm = false;
             }
             postDelayed(this, DATA_CHECK_INTERVAL);
         }
     };
 
-    //获取实时数据 0xFE，0xFE，0x68，0x01，0x01，0x01，0x6B，0x16
-    private final byte[] cmd = { (byte) 0xFE, (byte) 0xFE, (byte) 0x68,
-            (byte) 0x01, (byte) 0x01, (byte) 0x01, (byte) 0x6B, (byte) 0x16 };
+    private boolean hasFetchedAlarm = false;
+    private final SparseArray<Float> thresholdMap = new SparseArray<>();
+    private final ProtocolParser protocolParser = new ProtocolParser(new ProtocolParser.OnFrameParsedListener() {
+        @Override
+        public void onRealtimeData(int address, List<GasInfo> gasInfoList) {
+            LogUtils.d(TAG, "实时数据: addr=" + address + " count=" + gasInfoList.size());
+            for (GasInfo gasInfo : gasInfoList) {
+                Float threshold = thresholdMap.get(gasInfo.getType());
+                if (threshold != null) {
+                    gasInfo.setThreshold(threshold);
+                }
+            }
+            updatePopupDeviceInfo(gasInfoList);
+            //push2Cloud(gasInfoList);
+            if (!hasFetchedAlarm) {
+                hasFetchedAlarm = true;
+                sendReadAlarmCmd();
+            }
+        }
+
+        @Override
+        public void onAlarmData(int address, List<GasInfo> gasInfoList) {
+            LogUtils.d(TAG, "报警阈值: addr=" + address + " count=" + gasInfoList.size());
+            for (GasInfo gasInfo : gasInfoList) {
+                thresholdMap.put(gasInfo.getType(), gasInfo.getValue());
+                LogUtils.d(TAG, "阈值: type=" + gasInfo.getType() + " " + gasInfo.getEnName() + "=" + gasInfo.getDisplayValue());
+            }
+        }
+
+        @Override
+        public void onAck(int address, boolean success) {
+            LogUtils.d(TAG, "应答: addr=" + address + " success=" + success);
+        }
+    });
+
+    private final byte[] cmdRealtime = ProtocolParser.buildReadRealtimeCmd(DefaultConstant.slaveAddress);
     private final Runnable cmdRunnable = new Runnable() {
         @Override
         public void run() {
             if (pipeline != null) {
-                pipeline.writeData(cmd);
-                LogUtils.d(TAG, "writeData:" + HexUtils.bytesToHex(cmd));
+                pipeline.writeData(cmdRealtime);
+                LogUtils.d(TAG, "发送实时数据请求:" + HexUtils.bytesToHex(cmdRealtime));
             }
             postDelayed(this, 1000);
         }
     };
+
+    private void sendReadAlarmCmd() {
+        if (pipeline != null) {
+            byte[] cmd = ProtocolParser.buildReadAlarmCmd(DefaultConstant.slaveAddress);
+            pipeline.writeData(cmd);
+            LogUtils.d(TAG, "发送报警阈值请求:" + HexUtils.bytesToHex(cmd));
+        }
+    }
 
     private void initTcpClient() {
         removeCallbacks(cmdRunnable);
@@ -190,55 +234,47 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         RCSDKManager.INSTANCE.initSDK(this, new SDKManagerCallBack() {
             @Override
             public void onRcConnected() {
-                //连接成功
                 LogUtils.d(TAG, "onRcConnected");
                 createPipeline();
             }
 
             @Override
             public void onRcConnectFail(@Nullable SkyException e) {
-                //连接失败
                 LogUtils.e(TAG, "onRcConnectFail:" + (e == null ? "" : e.getMessage()));
             }
 
             @Override
             public void onRcDisconnect() {
-                //断开连接
                 LogUtils.d(TAG, "onRcDisconnect");
             }
         });
-        //设置在主线程回调
         RCSDKManager.INSTANCE.setMainThreadCallBack(true);
-        //连接遥控器
         RCSDKManager.INSTANCE.connectToRC();
     }
 
     private void createPipeline() {
-        //创建通讯管道
         pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.101", 14550, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
                 public void onConnectSuccess() {
-                    //连接成功
                     LogUtils.d(TAG, "onConnectSuccess");
                 }
 
                 @Override
                 public void onConnectFail(SkyException e) {
-                    //连接失败
                     LogUtils.e(TAG, "onConnectFail:" + (e == null ? "" : e.getMessage()));
                 }
 
                 @Override
                 public void onDisconnect() {
-                    //断开连接
                     LogUtils.d(TAG, "onDisconnect");
+                    hasFetchedAlarm = false;
+                    protocolParser.reset();
                 }
 
                 @Override
                 public void onReadData(byte[] bytes) {
-                    //读取数据
                     LogUtils.d(TAG, "onReadData:" + HexUtils.bytesToHex(bytes));
                     lastDataReceivedTime = System.currentTimeMillis();
                     if (!isDeviceOnline) {
@@ -247,9 +283,9 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                         removeCallbacks(dataCheckRunnable);
                         postDelayed(dataCheckRunnable, DATA_CHECK_INTERVAL);
                     }
+                    protocolParser.feed(bytes);
                 }
             });
-            //连接通讯管道
             PipelineManager.INSTANCE.connectPipeline(pipeline);
         }
     }
@@ -269,7 +305,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             boolean isWarn = gasInfo.isWarn();
 
             // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• " + gasInfo.getEnName() + " " + gasInfo.getValue() + " " + gasInfo.getUnit();
+            String deviceText = "• " + gasInfo.getEnName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
 
             if (isWarn) {
                 // 预警数据显示红色
@@ -347,7 +383,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             PipelineManager.INSTANCE.disconnectPipeline(pipeline);
         }
         EasyWindowManager.cancelAllWindow();
-        MQTTManager.getInstance().release();
+        //MQTTManager.getInstance().release();
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
