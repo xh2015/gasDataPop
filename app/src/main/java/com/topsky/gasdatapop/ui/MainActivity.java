@@ -260,6 +260,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                     || gasInfo.getType() == 16//氨气
                     || gasInfo.getType() == 17//氯气
                     || gasInfo.getType() == 28//氢气
+                    || gasInfo.getType() == 9//氢气
             ) {
                 // 检查是否超过预警值
                 boolean isWarn = gasInfo.isWarn();
