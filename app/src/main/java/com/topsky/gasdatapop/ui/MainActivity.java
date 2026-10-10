@@ -1,7 +1,6 @@
 package com.topsky.gasdatapop.ui;
 
 import android.content.Intent;
-import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
@@ -158,52 +157,11 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
     //region 遥控器通信
     private Pipeline pipeline;
-    private long lastDataReceivedTime;
     private boolean isDeviceOnline = false;
-    private static final long DATA_CHECK_INTERVAL = 20_000L;
-    private final Runnable dataCheckRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (System.currentTimeMillis() - lastDataReceivedTime > DATA_CHECK_INTERVAL) {
-                changeDeviceStatus(false);
-                isDeviceOnline = false;
-                hasFetchedAlarm = false;
-            }
-            postDelayed(this, DATA_CHECK_INTERVAL);
-        }
-    };
-
-    private boolean hasFetchedAlarm = false;
-    private final SparseArray<Float> thresholdMap = new SparseArray<>();
     private final ProtocolParser protocolParser = new ProtocolParser(new ProtocolParser.OnFrameParsedListener() {
         @Override
         public void onRealtimeData(int address, List<GasInfo> gasInfoList) {
-            for (GasInfo gasInfo : gasInfoList) {
-                Float threshold = thresholdMap.get(gasInfo.getType());
-                if (threshold != null) {
-                    gasInfo.setThreshold(threshold);
-                }
-            }
             updatePopupDeviceInfo(gasInfoList);
-            //push2Cloud(gasInfoList);
-            if (!hasFetchedAlarm) {
-                hasFetchedAlarm = true;
-                sendReadAlarmCmd();
-            }
-        }
-
-        @Override
-        public void onAlarmData(int address, List<GasInfo> gasInfoList) {
-            LogUtils.d(TAG, "报警阈值: addr=" + address + " count=" + gasInfoList.size());
-            for (GasInfo gasInfo : gasInfoList) {
-                thresholdMap.put(gasInfo.getType(), gasInfo.getValue());
-                LogUtils.d(TAG, "阈值: type=" + gasInfo.getType() + " " + gasInfo.getEnName() + "=" + gasInfo.getDisplayValue());
-            }
-        }
-
-        @Override
-        public void onAck(int address, boolean success) {
-            LogUtils.d(TAG, "应答: addr=" + address + " success=" + success);
         }
     });
 
@@ -217,14 +175,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             postDelayed(this, 1000);
         }
     };
-
-    private void sendReadAlarmCmd() {
-        if (pipeline != null) {
-            byte[] cmd = ProtocolParser.buildReadAlarmCmd(DefaultConstant.slaveAddress);
-            pipeline.writeData(cmd);
-            LogUtils.d(TAG, "发送报警阈值请求:" + HexUtils.bytesToHex(cmd));
-        }
-    }
 
     private void initTcpClient() {
         removeCallbacks(cmdRunnable);
@@ -251,7 +201,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
 
     private void createPipeline() {
-        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.159", 8899, true, true);
+        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.1.159", 8899, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
@@ -262,27 +212,24 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                 @Override
                 public void onConnectFail(SkyException e) {
                     LogUtils.e(TAG, "onConnectFail:" + (e == null ? "" : e.getMessage()));
+                    isDeviceOnline = false;
+                    changeDeviceStatus(false);
                 }
 
                 @Override
                 public void onDisconnect() {
                     LogUtils.d(TAG, "onDisconnect");
-                    hasFetchedAlarm = false;
+                    isDeviceOnline = false;
+                    changeDeviceStatus(false);
                     protocolParser.reset();
                 }
 
                 @Override
                 public void onReadData(byte[] bytes) {
                     LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(bytes));
-                    sb.append(HexUtils.bytesToHex(bytes));
-                    sb.append("\n");
-                    binding.tvGas.setText(sb.toString());
-                    lastDataReceivedTime = System.currentTimeMillis();
                     if (!isDeviceOnline) {
                         isDeviceOnline = true;
                         changeDeviceStatus(true);
-                        removeCallbacks(dataCheckRunnable);
-                        postDelayed(dataCheckRunnable, DATA_CHECK_INTERVAL);
                     }
                     protocolParser.feed(bytes);
                 }
@@ -290,8 +237,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             PipelineManager.INSTANCE.connectPipeline(pipeline);
         }
     }
-
-    StringBuilder sb = new StringBuilder();
     //endregion
 
     //region 更新弹窗数据
@@ -378,7 +323,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     //region生命周期
     @Override
     protected void onDestroy() {
-        removeCallbacks(dataCheckRunnable);
         removeCallbacks(cmdRunnable);
         RCSDKManager.INSTANCE.disconnectRC();
         //断开通讯管道

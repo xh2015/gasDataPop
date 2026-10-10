@@ -13,20 +13,11 @@ public class ProtocolParser {
     private static final int FRAME_END = 0x16;
     private static final int PREAMBLE = 0xFE;
 
-    public static final int CTRL_ACK = 0x00;
-    public static final int CTRL_REALTIME = 0x01;
-    public static final int CTRL_HISTORY = 0x02;
-    public static final int CTRL_ALARM = 0x03;
-
     private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     private OnFrameParsedListener listener;
 
     public interface OnFrameParsedListener {
         void onRealtimeData(int address, List<GasInfo> gasInfoList);
-
-        void onAlarmData(int address, List<GasInfo> gasInfoList);
-
-        void onAck(int address, boolean success);
     }
 
     public ProtocolParser(OnFrameParsedListener listener) {
@@ -58,7 +49,7 @@ public class ProtocolParser {
                 continue;
             }
 
-            if (bytes.length - pos < 6) {
+            if (bytes.length - pos < 5) {
                 break;
             }
 
@@ -90,25 +81,10 @@ public class ProtocolParser {
                 pos++;
                 continue;
             }
-
-            int ctrlCode = bytes[pos + 3] & 0xFF;
-
-            switch (ctrlCode) {
-                case CTRL_ACK:
-                    parseAck(address, bytes, pos, length);
-                    break;
-                case CTRL_REALTIME:
-                    parseRealtimeData(address, bytes, pos, length);
-                    break;
-                case CTRL_HISTORY:
-                    LogUtils.d(TAG, "历史数据帧(暂不处理)");
-                    break;
-                case CTRL_ALARM:
-                    parseAlarmData(address, bytes, pos, length);
-                    break;
-                default:
-                    LogUtils.w(TAG, "未知控制码: 0x" + String.format("%02X", ctrlCode));
-                    break;
+            if (length == 1 && (bytes[pos + 3] & 0xFF) == 0x01) {
+                LogUtils.d(TAG, "请求帧回显,跳过");
+            } else if (length > 0) {
+                parseRealtimeData(address, bytes, pos, length);
             }
 
             pos += frameLen;
@@ -122,30 +98,11 @@ public class ProtocolParser {
         }
     }
 
-    private void parseAck(int address, byte[] bytes, int pos, int length) {
-        if (length >= 2) {
-            int d0 = bytes[pos + 4] & 0xFF;
-            if (listener != null) {
-                listener.onAck(address, d0 == 1);
-            }
-        }
-    }
-
     private void parseRealtimeData(int address, byte[] bytes, int pos, int length) {
-        int dataLen = length - 1;
-        int dataStart = pos + 4;
-        List<GasInfo> gasInfoList = parseDataGroups(bytes, dataStart, dataLen);
+        int dataStart = pos + 3;
+        List<GasInfo> gasInfoList = parseDataGroups(bytes, dataStart, length);
         if (listener != null) {
             listener.onRealtimeData(address, gasInfoList);
-        }
-    }
-
-    private void parseAlarmData(int address, byte[] bytes, int pos, int length) {
-        int dataLen = length - 1;
-        int dataStart = pos + 4;
-        List<GasInfo> gasInfoList = parseDataGroups(bytes, dataStart, dataLen);
-        if (listener != null) {
-            listener.onAlarmData(address, gasInfoList);
         }
     }
 
@@ -185,18 +142,10 @@ public class ProtocolParser {
     }
 
     public static byte[] buildReadRealtimeCmd(int address) {
-        int cs = (FRAME_START + (address & 0xFF) + 0x01 + CTRL_REALTIME) & 0xFF;
+        int cs = (FRAME_START + (address & 0xFF) + 0x01 + 0x01) & 0xFF;
         return new byte[]{
                 (byte) PREAMBLE, (byte) PREAMBLE, (byte) FRAME_START,
-                (byte) address, 0x01, (byte) CTRL_REALTIME, (byte) cs, (byte) FRAME_END
-        };
-    }
-
-    public static byte[] buildReadAlarmCmd(int address) {
-        int cs = (FRAME_START + (address & 0xFF) + 0x01 + CTRL_ALARM) & 0xFF;
-        return new byte[]{
-                (byte) PREAMBLE, (byte) PREAMBLE, (byte) FRAME_START,
-                (byte) address, 0x01, (byte) CTRL_ALARM, (byte) cs, (byte) FRAME_END
+                (byte) address, 0x01, 0x01, (byte) cs, (byte) FRAME_END
         };
     }
 }
