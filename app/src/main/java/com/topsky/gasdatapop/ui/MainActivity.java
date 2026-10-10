@@ -201,7 +201,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
 
     private void createPipeline() {
-        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.1.159", 8899, true, true);
+        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.159", 8899, true, true);
         if (pipeline != null) {
             pipeline.setOnCommListener(new CommListener() {
                 @Override
@@ -249,18 +249,29 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             if (gasInfo == null) {
                 continue;
             }
-            // 检查是否超过预警值
-            boolean isWarn = gasInfo.isWarn();
-
-            // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
-
-            if (isWarn) {
-                // 预警数据显示红色
-                deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
-            } else {
-                // 正常数据显示白色
-                deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+            //只需要温度、湿度、CO2、CO、H2S、CH4、CL2、NH3、O2、H2
+            if (gasInfo.getType() == 1//甲烷
+                    || gasInfo.getType() == 2//氧气
+                    || gasInfo.getType() == 3//一氧化碳
+                    || gasInfo.getType() == 4//硫化氢
+                    || gasInfo.getType() == 5//二氧化碳
+                    || gasInfo.getType() == 7//温度
+                    || gasInfo.getType() == 8//湿度
+                    || gasInfo.getType() == 16//氨气
+                    || gasInfo.getType() == 17//氯气
+                    || gasInfo.getType() == 28//氢气
+            ) {
+                // 检查是否超过预警值
+                boolean isWarn = gasInfo.isWarn();
+                // 构建设备信息文本，根据预警状态设置颜色
+                String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
+                if (isWarn) {
+                    // 预警数据显示红色
+                    deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
+                } else {
+                    // 正常数据显示白色
+                    deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+                }
             }
         }
 
@@ -276,7 +287,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             easyWindowGAS.setTextByTextView(R.id.tvDeviceTitle, getString(online ? R.string.device_online : R.string.device_offline));
         }
     }
-    //endregion
+//endregion
 
     /*//region MQTT 云平台
     private void initMqtt() {
@@ -334,5 +345,5 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
-    //endregion
+//endregion
 }

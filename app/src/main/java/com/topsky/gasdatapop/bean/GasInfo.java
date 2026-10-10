@@ -128,8 +128,8 @@ public class GasInfo {
                 info.setName("湿度");
                 info.setEnName("RH");
                 info.setUnit("%RH");
-                info.setValue(rawValue * 0.1f);
-                info.decimalPlaces = 1;
+                info.setValue(rawValue);
+                info.decimalPlaces = 0;
                 break;
             case 9:
                 info.setName("氢气");
