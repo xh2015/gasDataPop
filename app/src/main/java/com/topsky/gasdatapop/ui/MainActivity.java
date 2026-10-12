@@ -18,12 +18,6 @@ import com.hjq.window.EasyWindow;
 import com.hjq.window.EasyWindowManager;
 import com.hjq.window.OnWindowViewClickListener;
 import com.hjq.window.draggable.MovingWindowDraggableRule;
-import com.skydroid.rcsdk.PipelineManager;
-import com.skydroid.rcsdk.RCSDKManager;
-import com.skydroid.rcsdk.SDKManagerCallBack;
-import com.skydroid.rcsdk.comm.CommListener;
-import com.skydroid.rcsdk.common.error.SkyException;
-import com.skydroid.rcsdk.common.pipeline.Pipeline;
 import com.topsky.gasdatapop.R;
 import com.topsky.gasdatapop.base.BaseActivity;
 import com.topsky.gasdatapop.bean.GasInfo;
@@ -31,12 +25,11 @@ import com.topsky.gasdatapop.constant.DefaultConstant;
 import com.topsky.gasdatapop.constant.SpConstant;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
 import com.topsky.gasdatapop.mqtt.MQTTManager;
+import com.topsky.gasdatapop.tcp.TcpClient;
+import com.topsky.gasdatapop.tcp.TcpListener;
 import com.topsky.gasdatapop.utils.HexUtils;
-import com.topsky.gasdatapop.utils.ProtocolParser;
 
 import java.util.List;
-
-import androidx.annotation.Nullable;
 
 public class MainActivity extends BaseActivity<ActivityMainBinding> implements View.OnClickListener {
     private static final String TAG = "MainActivity";
@@ -155,87 +148,57 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         easyWindowGAS.show();
     }
 
-    //region 遥控器通信
-    private Pipeline pipeline;
+    //region 通信
     private boolean isDeviceOnline = false;
-    private final ProtocolParser protocolParser = new ProtocolParser(new ProtocolParser.OnFrameParsedListener() {
-        @Override
-        public void onRealtimeData(int address, List<GasInfo> gasInfoList) {
-            updatePopupDeviceInfo(gasInfoList);
-        }
-    });
-
-    private final byte[] cmdRealtime = ProtocolParser.buildReadRealtimeCmd(DefaultConstant.slaveAddress);
     private final Runnable cmdRunnable = new Runnable() {
         @Override
         public void run() {
-            if (pipeline != null) {
-                pipeline.writeData(cmdRealtime);
-            }
             postDelayed(this, 1000);
         }
     };
 
+    private TcpClient tcpClient;
+    private static final String TCP_HOST = "192.168.1.159";
+    private static final int TCP_PORT = 8234;
+
     private void initTcpClient() {
-        removeCallbacks(cmdRunnable);
-        postDelayed(cmdRunnable, 1000);
-        RCSDKManager.INSTANCE.initSDK(this, new SDKManagerCallBack() {
+        tcpClient = new TcpClient(TCP_HOST, TCP_PORT);
+        tcpClient.setListener(new TcpListener() {
             @Override
-            public void onRcConnected() {
-                LogUtils.d(TAG, "onRcConnected");
-                createPipeline();
+            public void onConnected() {
+
             }
 
             @Override
-            public void onRcConnectFail(@Nullable SkyException e) {
-                LogUtils.e(TAG, "onRcConnectFail:" + (e == null ? "" : e.getMessage()));
+            public void onReConnect(String msg) {
+
             }
 
             @Override
-            public void onRcDisconnect() {
-                LogUtils.d(TAG, "onRcDisconnect");
+            public void onDisconnected() {
+                isDeviceOnline = false;
+                changeDeviceStatus(false);
+            }
+
+            @Override
+            public void onReceived(byte[] data) {
+                LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(data));
+                if (!isDeviceOnline) {
+                    isDeviceOnline = true;
+                    changeDeviceStatus(true);
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                isDeviceOnline = false;
+                changeDeviceStatus(false);
             }
         });
-        RCSDKManager.INSTANCE.setMainThreadCallBack(true);
-        RCSDKManager.INSTANCE.connectToRC();
-    }
+        tcpClient.connect();
 
-    private void createPipeline() {
-        pipeline = PipelineManager.INSTANCE.createTCPPipeline("192.168.144.159", 8899, true, true);
-        if (pipeline != null) {
-            pipeline.setOnCommListener(new CommListener() {
-                @Override
-                public void onConnectSuccess() {
-                    LogUtils.d(TAG, "onConnectSuccess");
-                }
-
-                @Override
-                public void onConnectFail(SkyException e) {
-                    LogUtils.e(TAG, "onConnectFail:" + (e == null ? "" : e.getMessage()));
-                    isDeviceOnline = false;
-                    changeDeviceStatus(false);
-                }
-
-                @Override
-                public void onDisconnect() {
-                    LogUtils.d(TAG, "onDisconnect");
-                    isDeviceOnline = false;
-                    changeDeviceStatus(false);
-                    protocolParser.reset();
-                }
-
-                @Override
-                public void onReadData(byte[] bytes) {
-                    LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(bytes));
-                    if (!isDeviceOnline) {
-                        isDeviceOnline = true;
-                        changeDeviceStatus(true);
-                    }
-                    protocolParser.feed(bytes);
-                }
-            });
-            PipelineManager.INSTANCE.connectPipeline(pipeline);
-        }
+        removeCallbacks(cmdRunnable);
+        postDelayed(cmdRunnable, 1000);
     }
     //endregion
 
@@ -249,30 +212,17 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             if (gasInfo == null) {
                 continue;
             }
-            //只需要温度、湿度、CO2、CO、H2S、CH4、CL2、NH3、O2、H2
-            if (gasInfo.getType() == 1//甲烷
-                    || gasInfo.getType() == 2//氧气
-                    || gasInfo.getType() == 3//一氧化碳
-                    || gasInfo.getType() == 4//硫化氢
-                    || gasInfo.getType() == 5//二氧化碳
-                    || gasInfo.getType() == 7//温度
-                    || gasInfo.getType() == 8//湿度
-                    || gasInfo.getType() == 16//氨气
-                    || gasInfo.getType() == 17//氯气
-                    || gasInfo.getType() == 28//氢气
-                    || gasInfo.getType() == 9//氢气
-            ) {
-                // 检查是否超过预警值
-                boolean isWarn = gasInfo.isWarn();
-                // 构建设备信息文本，根据预警状态设置颜色
-                String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
-                if (isWarn) {
-                    // 预警数据显示红色
-                    deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
-                } else {
-                    // 正常数据显示白色
-                    deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
-                }
+
+            // 检查是否超过预警值
+            boolean isWarn = gasInfo.isWarn();
+            // 构建设备信息文本，根据预警状态设置颜色
+            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
+            if (isWarn) {
+                // 预警数据显示红色
+                deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
+            } else {
+                // 正常数据显示白色
+                deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
             }
         }
 
@@ -288,7 +238,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             easyWindowGAS.setTextByTextView(R.id.tvDeviceTitle, getString(online ? R.string.device_online : R.string.device_offline));
         }
     }
-//endregion
+    //endregion
 
     /*//region MQTT 云平台
     private void initMqtt() {
@@ -336,12 +286,10 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     @Override
     protected void onDestroy() {
         removeCallbacks(cmdRunnable);
-        RCSDKManager.INSTANCE.disconnectRC();
-        //断开通讯管道
-        if (pipeline != null) {
-            PipelineManager.INSTANCE.disconnectPipeline(pipeline);
-        }
         EasyWindowManager.cancelAllWindow();
+        if (tcpClient != null) {
+            tcpClient.release();
+        }
         //MQTTManager.getInstance().release();
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

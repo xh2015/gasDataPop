@@ -82,7 +82,7 @@
             android:focusable="true"
             android:gravity="center"
             android:longClickable="true"
-            android:text="GAS"
+            android:text="DATA"
             android:textIsSelectable="true" />
 
     </LinearLayout>
