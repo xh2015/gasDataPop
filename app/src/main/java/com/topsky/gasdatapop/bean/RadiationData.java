@@ -10,7 +10,7 @@ public class RadiationData {
     private float batteryVoltage;
 
     public float getDoseRate() {
-        return doseRate;
+        return Math.round(doseRate * 1000) / 1000.0f;
     }
 
     public void setDoseRate(float doseRate) {
@@ -26,7 +26,7 @@ public class RadiationData {
     }
 
     public float getCumulativeDose() {
-        return cumulativeDose;
+        return Math.round(cumulativeDose * 10000) / 10000.0f;
     }
 
     public void setCumulativeDose(float cumulativeDose) {
@@ -42,7 +42,7 @@ public class RadiationData {
     }
 
     public float getTemperature() {
-        return temperature;
+        return Math.round(temperature * 10) / 10.0f;
     }
 
     public void setTemperature(float temperature) {
@@ -58,7 +58,7 @@ public class RadiationData {
     }
 
     public float getBatteryVoltage() {
-        return batteryVoltage;
+        return Math.round(batteryVoltage * 100) / 100.0f;
     }
 
     public void setBatteryVoltage(float batteryVoltage) {

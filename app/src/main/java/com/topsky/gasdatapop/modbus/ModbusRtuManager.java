@@ -226,7 +226,7 @@ public class ModbusRtuManager {
             case 4: return "μSv/h";
             case 5: return "CPM";
             case 6: return "CPS";
-            default: return "";
+            default: return "μSv/h";
         }
     }
 
@@ -236,7 +236,7 @@ public class ModbusRtuManager {
             case 5: return "CPM";
             case 6: return "CPS";
             case 7: return "Bq/L";
-            default: return "";
+            default: return "μSv";
         }
     }
 
@@ -244,7 +244,7 @@ public class ModbusRtuManager {
         switch (code) {
             case 1: return "℃";
             case 2: return "℉";
-            default: return "";
+            default: return "℃";
         }
     }
 
