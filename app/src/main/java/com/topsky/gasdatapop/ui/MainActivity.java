@@ -150,13 +150,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
     //region 通信
     private boolean isDeviceOnline = false;
-    private final Runnable cmdRunnable = new Runnable() {
-        @Override
-        public void run() {
-            postDelayed(this, 1000);
-        }
-    };
-
     private TcpClient tcpClient;
     private static final String TCP_HOST = "192.168.1.159";
     private static final int TCP_PORT = 8234;
@@ -196,9 +189,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             }
         });
         tcpClient.connect();
-
-        removeCallbacks(cmdRunnable);
-        postDelayed(cmdRunnable, 1000);
     }
     //endregion
 
@@ -212,18 +202,9 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             if (gasInfo == null) {
                 continue;
             }
-
-            // 检查是否超过预警值
-            boolean isWarn = gasInfo.isWarn();
             // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getDisplayValue() + " " + gasInfo.getUnit();
-            if (isWarn) {
-                // 预警数据显示红色
-                deviceInfo.append("<font color='#FF0000'>").append(deviceText).append("</font><br>");
-            } else {
-                // 正常数据显示白色
-                deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
-            }
+            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getUnit();
+            deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
         }
 
         // 使用HTML格式设置文本
@@ -285,7 +266,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     //region生命周期
     @Override
     protected void onDestroy() {
-        removeCallbacks(cmdRunnable);
         EasyWindowManager.cancelAllWindow();
         if (tcpClient != null) {
             tcpClient.release();
