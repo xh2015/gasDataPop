@@ -146,7 +146,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private boolean isDeviceOnline = false;
     private TcpClient tcpClient;
     private ModbusRtuManager modbusRtuManager;
-    private static final String TCP_HOST = "192.168.1.159";
+    private static final String TCP_HOST = "192.168.144.7";
     private static final int TCP_PORT = 8234;
 
     private void initTcpClient() {
@@ -191,7 +191,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
 
     private void updatePopupDeviceInfo(RadiationData data) {
-        if (easyWindowGAS == null || !easyWindowGAS.isShowing() || isFinishing() || isDestroyed()) {
+        if (isFinishing() || isDestroyed()) {
             return;
         }
         if (data == null) {
@@ -199,16 +199,16 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         }
         StringBuilder deviceInfo = new StringBuilder();
 
-        String deviceText = "• 剂量率 " + data.getDoseRate() + " " + data.getDoseRateUnit();
+        String deviceText = "• 实时剂量率 " + data.getDoseRate() + " " + data.getDoseRateUnit();
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
         deviceText = "• 累计剂量 " + data.getCumulativeDose() + " " + data.getCumulativeDoseUnit();
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
-        deviceText = "• 温度 " + data.getTemperature() + " " + data.getTemperatureUnit();
+        deviceText = "• 环境温度 " + data.getTemperature() + " " + data.getTemperatureUnit();
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
-        deviceText = "• 电池电压 " + data.getBatteryVoltage() + " V";
+        deviceText = "• 锂电池电压 " + data.getBatteryVoltage() + " V";
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
         // 使用HTML格式设置文本
