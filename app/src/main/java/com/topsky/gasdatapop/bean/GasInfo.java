@@ -2,6 +2,7 @@ package com.topsky.gasdatapop.bean;
 
 public class GasInfo {
     private String name;
+    private String enName;
     private String unit;
     private Float value;
 
@@ -11,6 +12,14 @@ public class GasInfo {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getEnName() {
+        return enName;
+    }
+
+    public void setEnName(String enName) {
+        this.enName = enName;
     }
 
     public String getUnit() {

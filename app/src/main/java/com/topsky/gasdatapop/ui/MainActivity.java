@@ -20,16 +20,14 @@ import com.hjq.window.OnWindowViewClickListener;
 import com.hjq.window.draggable.MovingWindowDraggableRule;
 import com.topsky.gasdatapop.R;
 import com.topsky.gasdatapop.base.BaseActivity;
-import com.topsky.gasdatapop.bean.GasInfo;
+import com.topsky.gasdatapop.bean.RadiationData;
 import com.topsky.gasdatapop.constant.DefaultConstant;
 import com.topsky.gasdatapop.constant.SpConstant;
 import com.topsky.gasdatapop.databinding.ActivityMainBinding;
-import com.topsky.gasdatapop.mqtt.MQTTManager;
+import com.topsky.gasdatapop.modbus.ModbusRtuManager;
 import com.topsky.gasdatapop.tcp.TcpClient;
 import com.topsky.gasdatapop.tcp.TcpListener;
 import com.topsky.gasdatapop.utils.HexUtils;
-
-import java.util.List;
 
 public class MainActivity extends BaseActivity<ActivityMainBinding> implements View.OnClickListener {
     private static final String TAG = "MainActivity";
@@ -46,12 +44,8 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
 
     @Override
     protected void init() {
-        // 添加标志保持屏幕常亮
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         checkPermission();
-        //initView();
-        //initMqtt();
-        initTcpClient();
     }
 
     @Override
@@ -120,7 +114,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                 return;
             }
             SPUtils.getInstance().put(SpConstant.DEVICE_CODE, code);
-            MQTTManager.getInstance().updateDeviceCode(code);
             Toast.makeText(this, R.string.ty_save_success, Toast.LENGTH_SHORT).show();
             binding.cardDeviceCode.setVisibility(View.GONE);
             KeyboardUtils.hideSoftInput(binding.etDeviceCode);
@@ -146,40 +139,46 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
                     easyWindow.setVisibilityByView(R.id.nested_scroll_view, View.VISIBLE);
                 });
         easyWindowGAS.show();
+        initTcpClient();
     }
 
     //region 通信
     private boolean isDeviceOnline = false;
     private TcpClient tcpClient;
+    private ModbusRtuManager modbusRtuManager;
     private static final String TCP_HOST = "192.168.1.159";
     private static final int TCP_PORT = 8234;
 
     private void initTcpClient() {
         tcpClient = new TcpClient(TCP_HOST, TCP_PORT);
+        modbusRtuManager = new ModbusRtuManager(tcpClient);
+        modbusRtuManager.setListener(this::updatePopupDeviceInfo);
+
         tcpClient.setListener(new TcpListener() {
             @Override
             public void onConnected() {
-
+                modbusRtuManager.startPolling();
             }
 
             @Override
             public void onReConnect(String msg) {
-
             }
 
             @Override
             public void onDisconnected() {
                 isDeviceOnline = false;
+                modbusRtuManager.stopPolling();
                 changeDeviceStatus(false);
             }
 
             @Override
             public void onReceived(byte[] data) {
-                LogUtils.d(TAG, "接收到的数据:" + HexUtils.bytesToHex(data));
+                LogUtils.d(TAG, "Received: " + HexUtils.bytesToHex(data));
                 if (!isDeviceOnline) {
                     isDeviceOnline = true;
                     changeDeviceStatus(true);
                 }
+                modbusRtuManager.onRawDataReceived(data);
             }
 
             @Override
@@ -190,22 +189,27 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         });
         tcpClient.connect();
     }
-    //endregion
 
-    //region 更新弹窗数据
-    private void updatePopupDeviceInfo(List<GasInfo> gasBeanList) {
-        if (gasBeanList == null || gasBeanList.isEmpty()) {
+    private void updatePopupDeviceInfo(RadiationData data) {
+        if (easyWindowGAS == null || !easyWindowGAS.isShowing() || isFinishing() || isDestroyed()) {
+            return;
+        }
+        if (data == null) {
             return;
         }
         StringBuilder deviceInfo = new StringBuilder();
-        for (GasInfo gasInfo : gasBeanList) {
-            if (gasInfo == null) {
-                continue;
-            }
-            // 构建设备信息文本，根据预警状态设置颜色
-            String deviceText = "• " + gasInfo.getName() + " " + gasInfo.getUnit();
-            deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
-        }
+
+        String deviceText = "• 剂量率 " + data.getDoseRate() + " " + data.getDoseRateUnit();
+        deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+
+        deviceText = "• 累计剂量 " + data.getCumulativeDose() + " " + data.getCumulativeDoseUnit();
+        deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+
+        deviceText = "• 温度 " + data.getTemperature() + " " + data.getTemperatureUnit();
+        deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+
+        deviceText = "• 电池电压 " + data.getBatteryVoltage() + " V";
+        deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
         // 使用HTML格式设置文本
         String htmlText = deviceInfo.toString();
@@ -221,58 +225,18 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     }
     //endregion
 
-    /*//region MQTT 云平台
-    private void initMqtt() {
-        MQTTManager.getInstance().init(this);
-        Random random = new Random();
-        Runnable test = new Runnable() {
-            @Override
-            public void run() {
-                List<GasInfo> gasBeanList = new ArrayList<>();
-                GasInfo gasInfo = new GasInfo();
-                gasInfo.setName("CO");
-                gasInfo.setUnit("ppm");
-                gasInfo.setValue(random.nextInt(100));
-                gasInfo.setEnName("CO");
-                gasBeanList.add(gasInfo);
-
-                gasInfo = new GasInfo();
-                gasInfo.setName("O2");
-                gasInfo.setUnit("%");
-                gasInfo.setValue(random.nextInt(30));
-                gasInfo.setEnName("O2");
-                gasBeanList.add(gasInfo);
-
-                gasInfo = new GasInfo();
-                gasInfo.setName("CH4");
-                gasInfo.setUnit("ppm");
-                gasInfo.setValue(random.nextInt(100) / 10.0f);
-                gasInfo.setEnName("CH4");
-                gasBeanList.add(gasInfo);
-
-                push2Cloud(gasBeanList);
-                updatePopupDeviceInfo(gasBeanList);
-                postDelayed(this, 2000);
-            }
-        };
-        post(test);
-    }
-
-    private void push2Cloud(List<GasInfo> gasBeanList) {
-        MQTTManager.getInstance().push2Cloud(gasBeanList);
-    }
-    //endregion*/
-
-    //region生命周期
+    //region 生命周期
     @Override
     protected void onDestroy() {
         EasyWindowManager.cancelAllWindow();
+        if (modbusRtuManager != null) {
+            modbusRtuManager.release();
+        }
         if (tcpClient != null) {
             tcpClient.release();
         }
-        //MQTTManager.getInstance().release();
         super.onDestroy();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
-//endregion
+    //endregion
 }
