@@ -4,4 +4,5 @@ public interface SpConstant {
     String MQTT_ENABLE = "mqtt_enable";
     String DEVICE_CODE = "device_code";
     String CLIENT_ID = "client_id";
+    String ALARM_THRESHOLD = "alarm_threshold";
 }

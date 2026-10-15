@@ -36,6 +36,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private EasyWindow easyWindowGAS;
     private int clickCount = 0;
     private long lastClickTime = 0;
+    private float alarmThreshold;
 
     @Override
     protected ActivityMainBinding initViewBinding(LayoutInflater inflater) {
@@ -45,6 +46,7 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     @Override
     protected void init() {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        initView();
         checkPermission();
     }
 
@@ -87,8 +89,15 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
     private void initView() {
         String deviceCode = SPUtils.getInstance().getString(SpConstant.DEVICE_CODE, DefaultConstant.deviceCode);
         binding.etDeviceCode.setText(deviceCode);
+
+        alarmThreshold = SPUtils.getInstance().getFloat(SpConstant.ALARM_THRESHOLD, 0f);
+        if (alarmThreshold > 0f) {
+            binding.etNumber.setText(String.valueOf(alarmThreshold));
+        }
+
         binding.tvGas.setOnClickListener(v -> handleGasTextClick());
         binding.btnSaveDeviceCode.setOnClickListener(this);
+        binding.btnSaveThreshold.setOnClickListener(this);
     }
 
     private void handleGasTextClick() {
@@ -117,6 +126,25 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             Toast.makeText(this, R.string.ty_save_success, Toast.LENGTH_SHORT).show();
             binding.cardDeviceCode.setVisibility(View.GONE);
             KeyboardUtils.hideSoftInput(binding.etDeviceCode);
+        } else if (v.getId() == R.id.btn_save_threshold) {
+            String thresholdStr = binding.etNumber.getText().toString().trim();
+            if (thresholdStr.isEmpty()) {
+                Toast.makeText(this, "请输入报警阈值", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                float threshold = Float.parseFloat(thresholdStr);
+                if (threshold <= 0f) {
+                    Toast.makeText(this, "报警阈值必须大于0", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                SPUtils.getInstance().put(SpConstant.ALARM_THRESHOLD, threshold);
+                alarmThreshold = threshold;
+                Toast.makeText(this, R.string.ty_save_success, Toast.LENGTH_SHORT).show();
+                KeyboardUtils.hideSoftInput(binding.etNumber);
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "请输入有效数值", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -198,9 +226,11 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
             return;
         }
         StringBuilder deviceInfo = new StringBuilder();
+        boolean isAlarming = alarmThreshold > 0f && data.getDoseRate() > alarmThreshold;
 
         String deviceText = "• 实时剂量率 " + data.getDoseRate() + " " + data.getDoseRateUnit();
-        deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
+        String doseRateColor = isAlarming ? "#FF0000" : "#FFFFFF";
+        deviceInfo.append("<font color='").append(doseRateColor).append("'>").append(deviceText).append("</font><br>");
 
         deviceText = "• 累计剂量 " + data.getCumulativeDose() + " " + data.getCumulativeDoseUnit();
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
@@ -211,7 +241,6 @@ public class MainActivity extends BaseActivity<ActivityMainBinding> implements V
         deviceText = "• 锂电池电压 " + data.getBatteryVoltage() + " V";
         deviceInfo.append("<font color='#FFFFFF'>").append(deviceText).append("</font><br>");
 
-        // 使用HTML格式设置文本
         String htmlText = deviceInfo.toString();
         if (easyWindowGAS != null) {
             easyWindowGAS.setTextByTextView(R.id.tvDeviceInfo, android.text.Html.fromHtml(htmlText, android.text.Html.FROM_HTML_MODE_LEGACY));
